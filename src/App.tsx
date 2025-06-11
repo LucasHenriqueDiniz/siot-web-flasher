@@ -5,12 +5,16 @@ import { WebFlasherPage } from "./pages/WebFlasherPage/WebFlasherPage";
 
 const theme = createTheme({
   palette: {
-    mode: "light",
+    mode: "dark",
     primary: {
       main: "#1976d2",
     },
     secondary: {
       main: "#dc004e",
+    },
+    background: {
+      default: "#121212",
+      paper: "#1e1e1e",
     },
   },
 });

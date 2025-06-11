@@ -1,248 +1,381 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Box, Button, Typography, Alert, CircularProgress, Paper } from "@mui/material";
+import React, { useState } from "react";
+import {
+  Box,
+  Button,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Typography,
+  TextField,
+  Paper,
+  Alert,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
+  Tabs,
+  Tab,
+} from "@mui/material";
 import flashService from "../../services/flashService";
+import SerialConsole from "../SerialConsole/SerialConsole";
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function CustomTabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`simple-tabpanel-${index}`}
+      aria-labelledby={`simple-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
+function a11yProps(index: number) {
+  return {
+    id: `simple-tab-${index}`,
+    "aria-controls": `simple-tabpanel-${index}`,
+  };
+}
 
 interface WebFlasherProps {
-  firmwareVersions?: Array<{ version: string; url: string }>;
+  firmwareVersions: { version: string; url: string }[];
   onSuccess?: () => void;
 }
 
 const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) => {
+  const [selectedFirmware, setSelectedFirmware] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [selectedFirmware, setSelectedFirmware] = useState<File | null>(null);
-  const [chipInfo, setChipInfo] = useState("");
-  const [flashResult, setFlashResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [serialLog, setSerialLog] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+  const [showEraseConfirm, setShowEraseConfirm] = useState(false);
+  const [baudRate, setBaudRate] = useState("115200");
+  const [flashAddress, setFlashAddress] = useState("0x1000");
+  const [tabValue, setTabValue] = useState(0);
 
-  const outputRef = useRef<HTMLPreElement>(null);
-
-  const terminal = useCallback(
-    () => ({
-      clean() {
-        setLogs([]);
-      },
-      writeLine(data: string) {
-        setLogs((prev) => [...prev, data]);
-      },
-      write(data: string) {
-        setLogs((prev) => {
-          const lastIndex = prev.length - 1;
-          if (lastIndex >= 0) {
-            const updatedLogs = [...prev];
-            updatedLogs[lastIndex] = updatedLogs[lastIndex] + data;
-            return updatedLogs;
-          }
-          return [...prev, data];
-        });
-      },
-    }),
-    []
-  );
-
-  useEffect(() => {
-    flashService.setTerminal(terminal());
-  }, [terminal]);
-
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+  const handleTabChange = async (event: React.SyntheticEvent, newValue: number) => {
+    if (tabValue === 1 && newValue !== 1) {
+      const serialConsole = document.querySelector("SerialConsole");
+      if (serialConsole) {
+        await (serialConsole as any).stopConsole();
+      }
     }
-  }, [logs]);
+    setTabValue(newValue);
+  };
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setSerialLog((prev) => [...prev, `[${timestamp}] ${message}`]);
+  };
+
+  const showStatus = (type: "success" | "error" | "info", message: string) => {
+    setStatusMessage({ type, message });
+    addLog(message);
+  };
+
   const handleConnect = async () => {
-    terminal().writeLine("Conectando ao dispositivo ESP...");
-    const result = await flashService.connect();
-
-    if (result.success) {
-      terminal().writeLine(`Conectado com sucesso: ${result.chipInfo}`);
-
-      // Convert ROM object to string if needed
-      const chipInfoString = typeof result.chipInfo === "object" && result.chipInfo !== null ? result.chipInfo.toString() : result.chipInfo || "";
-
-      setChipInfo(chipInfoString);
-      setIsConnected(true);
-    } else {
-      terminal().writeLine(`Erro ao conectar: ${result.error}`);
+    try {
+      showStatus("info", "Tentando conectar ao dispositivo...");
+      const result = await flashService.connect(parseInt(baudRate));
+      if (result.success) {
+        setIsConnected(true);
+        showStatus("success", "Dispositivo conectado com sucesso!");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao conectar";
+      showStatus("error", `Falha ao conectar: ${errorMessage}`);
+      console.error("Erro ao conectar:", error);
     }
   };
 
   const handleDisconnect = async () => {
-    await flashService.disconnect();
-    setIsConnected(false);
-    setChipInfo("");
-    terminal().writeLine("Dispositivo desconectado.");
+    try {
+      showStatus("info", "Desconectando dispositivo...");
+      await flashService.disconnect();
+      setIsConnected(false);
+      setSerialLog([]);
+      showStatus("success", "Dispositivo desconectado com sucesso!");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao desconectar";
+      showStatus("error", `Falha ao desconectar: ${errorMessage}`);
+      console.error("Erro ao desconectar:", error);
+    }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFirmware(file);
+  const handleErase = async () => {
+    try {
+      setIsFlashing(true);
+      setProgress(0);
+      showStatus("info", "Iniciando apagamento da memória flash...");
+      await flashService.eraseFlash();
+      setProgress(100);
+      showStatus("success", "Memória flash apagada com sucesso!");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao apagar";
+      showStatus("error", `Falha ao apagar memória: ${errorMessage}`);
+      console.error("Erro ao apagar:", error);
+    } finally {
+      setIsFlashing(false);
+      setShowEraseConfirm(false);
     }
   };
 
   const handleFlash = async () => {
-    if (!selectedFirmware) return;
-
-    setIsFlashing(true);
-    setFlashResult(null);
-    terminal().writeLine(`Iniciando flash do firmware: ${selectedFirmware.name}`);
+    if (!selectedFirmware) {
+      setStatusMessage({ type: "error", message: "Selecione um firmware primeiro" });
+      return;
+    }
 
     try {
-      const fileBuffer = await selectedFirmware.arrayBuffer();
-      const firmwareData = new Uint8Array(fileBuffer);
+      setIsFlashing(true);
+      setStatusMessage({ type: "info", message: "Iniciando flash do firmware..." });
+      setProgress(0);
+      setSerialLog([]);
 
-      terminal().writeLine(`Tamanho do arquivo: ${firmwareData.byteLength} bytes`);
-      terminal().writeLine("Quando o terminal mostrar 'connecting...' pressione o botão BOOT no ESP");
-
-      const result = await flashService.flashFirmware(firmwareData, (progress) => setProgress(progress));
-
-      if (result.success) {
-        terminal().writeLine("Flash concluído com sucesso!");
-        setFlashResult({ success: true });
-        if (onSuccess) onSuccess();
-      } else {
-        terminal().writeLine(`Erro durante o flash: ${result.error}`);
-        setFlashResult({ success: false, error: result.error });
+      const firmware = firmwareVersions.find((f) => f.version === selectedFirmware);
+      if (!firmware) {
+        throw new Error("Firmware não encontrado");
       }
-    } catch (error) {
-      terminal().writeLine(`Erro inesperado: ${(error as Error).message}`);
-      setFlashResult({ success: false, error: (error as Error).message });
+
+      addLog(`Iniciando flash do firmware da URL: ${firmware.url}`);
+      addLog(`Usando endereço de flash: 0x${parseInt(flashAddress, 16).toString(16)}`);
+
+      await flashService.flashFirmware(
+        firmware.url,
+        (progress) => {
+          setProgress(progress);
+        },
+        (message) => {
+          addLog(message);
+          setStatusMessage({ type: "info", message });
+        },
+        parseInt(flashAddress, 16)
+      );
+
+      setStatusMessage({ type: "success", message: "Firmware instalado com sucesso!" });
+      onSuccess?.();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      setStatusMessage({ type: "error", message: `Erro: ${errorMessage}` });
+      addLog(`Erro: ${errorMessage}`);
     } finally {
       setIsFlashing(false);
-      setProgress(0);
     }
   };
 
   return (
-    <Box sx={{ width: "100%", maxWidth: 600, mx: "auto" }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography
-          variant="h5"
-          gutterBottom
+    <Box sx={{ width: "100%" }}>
+      <Snackbar
+        open={!!statusMessage}
+        autoHideDuration={6000}
+        onClose={() => setStatusMessage(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setStatusMessage(null)}
+          severity={statusMessage?.type}
+          sx={{ width: "100%" }}
         >
-          Web Flasher para ESP
-        </Typography>
+          {statusMessage?.message}
+        </Alert>
+      </Snackbar>
+
+      <Dialog
+        open={showEraseConfirm}
+        onClose={() => setShowEraseConfirm(false)}
+      >
+        <DialogTitle>Atenção</DialogTitle>
+        <DialogContent>
+          <Typography>Você está prestes a apagar toda a memória flash do dispositivo. Esta ação não pode ser desfeita. Deseja continuar?</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEraseConfirm(false)}>Cancelar</Button>
+          <Button
+            onClick={handleErase}
+            color="error"
+            variant="contained"
+          >
+            Apagar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="basic tabs example"
+        >
+          <Tab
+            label="Instalar Firmware"
+            {...a11yProps(0)}
+          />
+          <Tab
+            label="Console Serial"
+            {...a11yProps(1)}
+          />
+        </Tabs>
+      </Box>
+
+      <CustomTabPanel
+        value={tabValue}
+        index={0}
+      >
+        <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+          <Button
+            variant="contained"
+            onClick={handleConnect}
+            disabled={isConnected}
+          >
+            Conectar Dispositivo
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDisconnect}
+            disabled={!isConnected}
+          >
+            Desconectar
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={() => setShowEraseConfirm(true)}
+            disabled={!isConnected || isFlashing}
+          >
+            Apagar Flash
+          </Button>
+        </Box>
+
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 2 }}>
+          <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+            <FormControl fullWidth>
+              <InputLabel>Baud Rate</InputLabel>
+              <Select
+                value={baudRate}
+                onChange={(e) => setBaudRate(e.target.value)}
+                disabled={isConnected}
+              >
+                <MenuItem value="9600">9600</MenuItem>
+                <MenuItem value="19200">19200</MenuItem>
+                <MenuItem value="38400">38400</MenuItem>
+                <MenuItem value="57600">57600</MenuItem>
+                <MenuItem value="115200">115200</MenuItem>
+                <MenuItem value="230400">230400</MenuItem>
+                <MenuItem value="460800">460800</MenuItem>
+                <MenuItem value="921600">921600</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+          <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+            <FormControl fullWidth>
+              <InputLabel>Versão do Firmware</InputLabel>
+              <Select
+                value={selectedFirmware}
+                onChange={(e) => setSelectedFirmware(e.target.value)}
+                disabled={!isConnected || isFlashing}
+              >
+                {firmwareVersions.map((firmware) => (
+                  <MenuItem
+                    key={firmware.version}
+                    value={firmware.version}
+                  >
+                    {firmware.version}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
+
+        {isConnected && (
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              label="Endereço Flash"
+              value={flashAddress}
+              onChange={(e) => setFlashAddress(e.target.value)}
+              disabled={isFlashing}
+              placeholder="0x1000"
+              helperText="Endereço em hexadecimal (ex: 0x1000)"
+            />
+          </Box>
+        )}
+
+        {isFlashing && (
+          <Box sx={{ mb: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{ mb: 0.5 }}
+            >
+              Progresso: {progress}%
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: "rgba(0, 0, 0, 0.1)",
+                "& .MuiLinearProgress-bar": {
+                  borderRadius: 5,
+                  backgroundColor: "primary.main",
+                },
+              }}
+            />
+          </Box>
+        )}
 
         <Button
           variant="contained"
-          color={isConnected ? "error" : "primary"}
-          onClick={isConnected ? handleDisconnect : handleConnect}
-          disabled={isFlashing}
+          color="primary"
+          onClick={handleFlash}
+          disabled={!isConnected || !selectedFirmware || isFlashing}
           fullWidth
           sx={{ mb: 2 }}
         >
-          {isConnected ? "Desconectar Dispositivo" : "Conectar Dispositivo"}
+          {isFlashing ? `Flasheando...` : "Iniciar Flash"}
         </Button>
 
-        {chipInfo && (
-          <Alert
-            severity="info"
-            sx={{ mb: 2 }}
-          >
-            Dispositivo conectado: {chipInfo}
-          </Alert>
-        )}
-      </Box>
-
-      {isConnected && (
-        <Box sx={{ mb: 3 }}>
-          <Typography
-            variant="h6"
-            gutterBottom
-          >
-            Selecionar Firmware
-          </Typography>
-
-          <Button
-            variant="outlined"
-            component="label"
-            disabled={isFlashing}
-            fullWidth
-            sx={{ mb: 2 }}
-          >
-            Escolher Arquivo (.bin)
-            <input
-              type="file"
-              accept=".bin"
-              hidden
-              onChange={handleFileChange}
-            />
-          </Button>
-
-          {selectedFirmware && (
-            <Typography
-              variant="body2"
-              sx={{ mb: 2 }}
-            >
-              Arquivo selecionado: {selectedFirmware.name}
-            </Typography>
-          )}
-
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleFlash}
-            disabled={!selectedFirmware || isFlashing}
-            fullWidth
-          >
-            {isFlashing ? (
-              <>
-                <CircularProgress
-                  size={24}
-                  sx={{ mr: 1, color: "white" }}
-                />
-                Flasheando... {progress}%
-              </>
-            ) : (
-              "Iniciar Flash"
-            )}
-          </Button>
-        </Box>
-      )}
-
-      <Alert
-        severity="info"
-        sx={{ width: "100%", mb: 2, textAlign: "center" }}
-      >
-        Quando o terminal exibir "connecting..." pressione o botão "boot" no seu dispositivo ESP
-      </Alert>
-
-      <Paper
-        component="pre"
-        sx={{
-          height: "200px",
-          overflow: "auto",
-          width: "100%",
-          whiteSpace: "pre-wrap",
-          p: 2,
-          mb: 2,
-          fontFamily: "monospace",
-          bgcolor: "#f5f5f5",
-          fontSize: "0.9rem",
-        }}
-        ref={outputRef}
-      >
-        {logs.length > 0 ? (
-          logs.map((log, index) => <div key={index}>{log}</div>)
-        ) : (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-          >
-            Conecte um dispositivo para começar...
-          </Typography>
-        )}
-      </Paper>
-
-      {flashResult && (
-        <Alert
-          severity={flashResult.success ? "success" : "error"}
-          sx={{ width: "100%", textAlign: "center" }}
+        <Paper
+          sx={{
+            p: 2,
+            height: "300px",
+            overflowY: "auto",
+            backgroundColor: "#121212",
+            color: "#f0f0f0",
+            fontFamily: "monospace",
+            mb: 2,
+            borderRadius: 2,
+          }}
         >
-          {flashResult.success ? "Flash concluído com sucesso!" : `Falha no flash: ${flashResult.error}`}
-        </Alert>
-      )}
+          {serialLog.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </Paper>
+      </CustomTabPanel>
+
+      <CustomTabPanel
+        value={tabValue}
+        index={1}
+      >
+        <SerialConsole />
+      </CustomTabPanel>
     </Box>
   );
 };

@@ -1,28 +1,27 @@
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
-import consoleTestService from "../../services/consoleTestService";
-import SimpleTerminal, { TerminalRef } from "../SimpleTerminal/SimpleTerminal";
+import flashReadService from "../services/flashReadService";
+import SimpleTerminal, { TerminalRef } from "./SimpleTerminal";
 
-interface SerialReadTestProps {
+interface SerialReadProps {
   setHasStabilizedConnection: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnection }) => {
+const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isReading, setIsReading] = useState(false);
   const [baudRate, setBaudRate] = useState("115200");
   const terminalRef = useRef<TerminalRef>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [inputMessage, setInputMessage] = useState("");
-
-  // Configuramos o terminal quando o componente é montado
+  // Set up terminal when component is mounted
   useEffect(() => {
     if (terminalRef.current) {
-      // Cria um adaptador para o terminal que implementa a interface esperada pelo serviço
+      // Create a terminal adapter that implements the interface expected by the service
       const terminalAdapter = {
         write: (data: string | Uint8Array) => {
           if (terminalRef.current) {
-            // Se for um Uint8Array, converte para string
+            // If it's a Uint8Array, convert to string
             if (data instanceof Uint8Array || (data as any).buffer instanceof ArrayBuffer) {
               const decoder = new TextDecoder();
               terminalRef.current.write(decoder.decode(data as Uint8Array));
@@ -43,123 +42,117 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
         },
       };
 
-      // Registra o adaptador do terminal no serviço
-      consoleTestService.setTerminal(terminalAdapter);
+      // Register the terminal adapter in the service
+      flashReadService.setTerminal(terminalAdapter);
     }
   }, []);
-
   const handleConnect = async () => {
     try {
-      setStatusMessage("Conectando ao dispositivo...");
+      setStatusMessage("Connecting to device...");
 
-      // Limpa o terminal antes de conectar
+      // Clear the terminal before connecting
       if (terminalRef.current) {
         terminalRef.current.clear();
-        terminalRef.current.writeLine("Conectando ao dispositivo...");
+        terminalRef.current.writeLine("Connecting to device...");
       }
 
-      const success = await consoleTestService.connectConsole(parseInt(baudRate));
+      const success = await flashReadService.connectConsole(parseInt(baudRate));
 
       if (success) {
         setIsConnected(true);
         setHasStabilizedConnection(true);
-        setStatusMessage("Dispositivo conectado com sucesso");
+        setStatusMessage("Device connected successfully");
 
         if (terminalRef.current) {
-          terminalRef.current.writeLine("Dispositivo conectado com sucesso!");
+          terminalRef.current.writeLine("Device connected successfully!");
           terminalRef.current.writeLine(`Baud rate: ${baudRate}`);
-          terminalRef.current.writeLine("Para iniciar a leitura, clique em 'Iniciar Leitura'");
+          terminalRef.current.writeLine("To start reading, click 'Start Monitoring'");
         }
       }
     } catch (error) {
-      setStatusMessage(`Erro ao conectar: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Connection error: ${error instanceof Error ? error.message : "Unknown"}`);
       if (terminalRef.current) {
-        terminalRef.current.writeLine(`Erro ao conectar: ${error instanceof Error ? error.message : "Desconhecido"}`);
+        terminalRef.current.writeLine(`Connection error: ${error instanceof Error ? error.message : "Unknown"}`);
       }
     }
   };
-
   const handleDisconnect = async () => {
     try {
-      setStatusMessage("Desconectando dispositivo...");
+      setStatusMessage("Disconnecting device...");
 
-      await consoleTestService.stopConsole();
+      await flashReadService.stopConsole();
 
       setIsConnected(false);
       setHasStabilizedConnection(false);
       setIsReading(false);
-      setStatusMessage("Dispositivo desconectado");
+      setStatusMessage("Device disconnected");
 
       if (terminalRef.current) {
-        terminalRef.current.writeLine("Dispositivo desconectado");
+        terminalRef.current.writeLine("Device disconnected");
       }
     } catch (error) {
-      setStatusMessage(`Erro ao desconectar: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Disconnection error: ${error instanceof Error ? error.message : "Unknown"}`);
       if (terminalRef.current) {
-        terminalRef.current.writeLine(`Erro ao desconectar: ${error instanceof Error ? error.message : "Desconhecido"}`);
+        terminalRef.current.writeLine(`Disconnection error: ${error instanceof Error ? error.message : "Unknown"}`);
       }
     }
   };
-
   const handleStartReading = async () => {
     try {
-      setStatusMessage("Iniciando leitura...");
+      setStatusMessage("Starting reading...");
       setIsReading(true);
 
       if (terminalRef.current) {
-        terminalRef.current.writeLine("Iniciando leitura serial...");
+        terminalRef.current.writeLine("Starting serial reading...");
       }
 
-      // Inicia a leitura em segundo plano para não bloquear a UI
+      // Start reading in the background to avoid blocking the UI
       (async () => {
         try {
-          await consoleTestService.startConsoleRead();
+          await flashReadService.startConsoleRead();
         } catch (error) {
-          console.error("Erro na leitura:", error);
+          console.error("Error reading:", error);
           setIsReading(false);
         }
       })();
     } catch (error) {
-      setStatusMessage(`Erro ao iniciar leitura: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Error starting reading: ${error instanceof Error ? error.message : "Unknown"}`);
       setIsReading(false);
     }
   };
-
   const handleStopReading = async () => {
     try {
-      setStatusMessage("Parando leitura...");
-      await consoleTestService.stopConsole();
+      setStatusMessage("Stopping reading...");
+      await flashReadService.stopConsole();
       setIsReading(false);
-      setStatusMessage("Leitura parada");
+      setStatusMessage("Reading stopped");
     } catch (error) {
-      setStatusMessage(`Erro ao parar leitura: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Error stopping reading: ${error instanceof Error ? error.message : "Unknown"}`);
     }
   };
-
   const handleReset = async () => {
     try {
-      setStatusMessage("Resetando dispositivo...");
-      await consoleTestService.reset();
-      setStatusMessage("Dispositivo resetado");
+      setStatusMessage("Resetting device...");
+      await flashReadService.reset();
+      setStatusMessage("Device reset");
     } catch (error) {
-      setStatusMessage(`Erro ao resetar: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Error resetting device: ${error instanceof Error ? error.message : "Unknown"}`);
     }
   };
-
   const handleSendData = async () => {
     if (!inputMessage.trim()) return;
 
     try {
-      await consoleTestService.sendData(inputMessage);
+      await flashReadService.sendData(inputMessage);
 
-      // Adiciona a mensagem enviada no terminal
+      // Add the sent message to the terminal
       if (terminalRef.current) {
         terminalRef.current.writeLine(`>>> ${inputMessage}`);
       }
 
       setInputMessage("");
     } catch (error) {
-      setStatusMessage(`Erro ao enviar dados: ${error instanceof Error ? error.message : "Desconhecido"}`);
+      setStatusMessage(`Error sending data: ${error instanceof Error ? error.message : "Unknown"}`);
     }
   };
 
@@ -179,18 +172,16 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
           onClick={handleConnect}
           disabled={isConnected}
         >
-          Conectar Dispositivo
+          Connect Device
         </Button>
-
         <Button
           variant="contained"
           color="secondary"
           onClick={handleDisconnect}
           disabled={!isConnected}
         >
-          Desconectar Dispositivo
+          Disconnect Device
         </Button>
-
         <Button
           variant="contained"
           color="success"
@@ -199,22 +190,20 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
         >
           Start Monitoring
         </Button>
-
         <Button
           variant="contained"
           color="error"
           onClick={handleStopReading}
           disabled={!isReading}
         >
-          Parar Leitura
+          Stop Reading
         </Button>
-
         <Button
           variant="outlined"
           onClick={handleReset}
           disabled={!isConnected}
         >
-          Reset Dispositivo
+          Reset Device
         </Button>
       </Box>
       <Box sx={{ mb: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -260,7 +249,7 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
           onChange={(e) => setInputMessage(e.target.value)}
           onKeyPress={handleKeyPress}
           disabled={!isReading}
-          placeholder="Enviar comando..."
+          placeholder="Send command..."
           style={{
             flex: 1,
             padding: "8px",
@@ -273,7 +262,7 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
           onClick={handleSendData}
           disabled={!isReading || !inputMessage.trim()}
         >
-          Enviar
+          Send
         </Button>
       </Box>
 
@@ -289,4 +278,4 @@ const SerialReadTest: React.FC<SerialReadTestProps> = ({ setHasStabilizedConnect
   );
 };
 
-export default SerialReadTest;
+export default SerialRead;

@@ -1,7 +1,7 @@
 import { ThemeProvider, createTheme } from "@mui/material";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
-import { WebFlasherPage } from "./pages/WebFlasherPage/WebFlasherPage";
+import { WebFlasherPage } from "./pages/WebFlasherPage";
 
 const theme = createTheme({
   palette: {

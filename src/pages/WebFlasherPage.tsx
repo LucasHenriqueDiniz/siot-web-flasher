@@ -1,13 +1,12 @@
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Alert, Box, Container, Tab, Tabs, Typography, Snackbar } from "@mui/material";
-import Accordion from "@mui/material/Accordion";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import AccordionSummary from "@mui/material/AccordionSummary";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Container, Snackbar, Tab, Tabs, Typography } from "@mui/material";
 import React, { useState } from "react";
-import SerialReadTest from "../../components/SerialReadTest/SerialReadTest";
-import WebFlasher from "../../components/WebFlasher";
+import WebFlasher from "../components/WebFlasher";
+import SerialRead from "../components/WebSerialRead";
 
-// Lista de versões de firmware disponíveis
+// List of available firmware versions
+// This should ideally be fetched from a server or defined in a configuration file
+// For simplicity, we define it here as a constant and put the files in the firmwares directory
 const availableFirmwares = [{ version: "v1.0.3", url: "/firmwares/esp-client-1.0.3.bin" }];
 
 export const WebFlasherPage: React.FC = () => {
@@ -42,7 +41,7 @@ export const WebFlasherPage: React.FC = () => {
           severity="warning"
           sx={{ width: "100%" }}
         >
-          Para trocar de modo é necessário desconectar o dispositivo para evitar erros.
+          To change mode, you need to disconnect the device to avoid errors.
         </Alert>
       </Snackbar>
 
@@ -66,30 +65,30 @@ export const WebFlasherPage: React.FC = () => {
             aria-controls="howToUsePanel-content"
             id="howToUsePanel-header"
           >
-            <Typography variant="h6">Como utilizar</Typography>
+            <Typography variant="h6">How to use</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography paragraph>
-              Este flasher web permite instalar o firmware do S-IoT diretamente pelo seu navegador, sem necessidade de instalação de software adicional.
+            <Typography>
+              This web flasher allows you to install S-IoT firmware directly from your browser, without the need for additional software installation.
             </Typography>
-            <Typography paragraph>
-              <strong>Passos:</strong>
+            <Typography>
+              <strong>Steps:</strong>
             </Typography>
             <ol>
               <li>
-                <Typography paragraph>Conecte seu dispositivo ESP32/ESP8266 ao computador via cabo USB</Typography>
+                <Typography>Connect your ESP32/ESP8266 device to the computer via USB cable</Typography>
               </li>
               <li>
-                <Typography paragraph>Clique em "Conectar Dispositivo" e selecione a porta apropriada</Typography>
+                <Typography>Click on "Connect Device" and select the appropriate port</Typography>
               </li>
               <li>
-                <Typography paragraph>Selecione a versão do firmware desejada</Typography>
+                <Typography>Select the desired firmware version</Typography>
               </li>
               <li>
-                <Typography paragraph>Clique em "Iniciar Flash" para começar o processo</Typography>
+                <Typography>Click on "Start Flash" to begin the process</Typography>
               </li>
               <li>
-                <Typography paragraph>Quando solicitado, pressione o botão BOOT no seu dispositivo ESP</Typography>
+                <Typography>When prompted, press the BOOT button on your ESP device</Typography>
               </li>
             </ol>
             <Alert
@@ -97,7 +96,7 @@ export const WebFlasherPage: React.FC = () => {
               severity="info"
               sx={{ mt: 2 }}
             >
-              Este flasher funciona nos navegadores Chrome e Edge em computadores com Windows, macOS e Linux.
+              This flasher works in Chrome and Edge browsers on Windows, macOS, and Linux computers.
             </Alert>
           </AccordionDetails>
         </Accordion>
@@ -111,14 +110,14 @@ export const WebFlasherPage: React.FC = () => {
             aria-controls="compatibilityPanel-content"
             id="compatibilityPanel-header"
           >
-            <Typography variant="h6">Dispositivos Compatíveis</Typography>
+            <Typography variant="h6">Compatible Devices</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography paragraph>O S-IoT Web Flasher é compatível com uma ampla gama de dispositivos ESP:</Typography>
+            <Typography>The S-IoT Web Flasher is compatible with a wide range of ESP devices:</Typography>
             <ul>
               <li>
-                <Typography paragraph>
-                  <strong>ESP32:</strong> Lorem Ipsolum
+                <Typography>
+                  <strong>Espressif Chips:</strong> ESP32, ESP32-S2, ESP32-S3, ESP8266
                 </Typography>
               </li>
             </ul>
@@ -127,13 +126,13 @@ export const WebFlasherPage: React.FC = () => {
               severity="success"
               sx={{ mt: 2 }}
             >
-              O firmware S-IoT é otimizado para os módulos ESP32, proporcionando melhor desempenho e estabilidade.
+              The S-IoT firmware is optimized for ESP32 modules, providing better performance and stability.
             </Alert>
           </AccordionDetails>
         </Accordion>
       </Box>
 
-      {/* Abas para alternar entre flasher e console */}
+      {/* Tabs to switch between flasher and console */}
       <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
         <Tabs
           value={tabValue}
@@ -153,7 +152,7 @@ export const WebFlasherPage: React.FC = () => {
           firmwareVersions={availableFirmwares}
           setHasStabilizedConnection={setConnected}
           onSuccess={() => {
-            console.log("Flash concluído com sucesso!");
+            console.log("Flash completed successfully!");
           }}
         />
       </Box>
@@ -162,7 +161,7 @@ export const WebFlasherPage: React.FC = () => {
         sx={{ pt: 3 }}
         hidden={tabValue !== 1}
       >
-        <SerialReadTest setHasStabilizedConnection={setConnected} />
+        <SerialRead setHasStabilizedConnection={setConnected} />
       </Box>
     </Container>
   );

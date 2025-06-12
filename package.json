@@ -8,17 +8,12 @@
     "@mui/icons-material": "^7.1.1",
     "@mui/lab": "^7.0.0-beta.13",
     "@mui/material": "^7.1.1",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^13.5.0",
     "esptool-js": "^0.5.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
     "react-scripts": "5.0.1",
-    "web-serial-polyfill": "^1.0.15",
-    "web-vitals": "^2.1.4"
+    "web-serial-polyfill": "^1.0.15"
   },
   "scripts": {
     "start": "react-scripts start",

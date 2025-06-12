@@ -27,7 +27,7 @@ declare global {
 interface Terminal {
   clean(): void;
   writeLine(data: string): void;
-  write(data: string): void;
+  write(data: string | Uint8Array): void;
 }
 
 interface FlashResult {
@@ -51,14 +51,14 @@ export class FlashService {
 
   getSerialStream(): ReadableStream {
     if (!this.port?.readable) {
-      throw new Error("Porta serial não está disponível");
+      throw new Error("Serial port is not available");
     }
     return this.port.readable;
   }
 
   async sendSerialData(data: string): Promise<void> {
     if (!this.port?.writable) {
-      throw new Error("Porta serial não está disponível");
+      throw new Error("Serial port is not available");
     }
 
     if (!this.writer) {
@@ -71,24 +71,24 @@ export class FlashService {
 
   async eraseFlash(): Promise<void> {
     if (!this.espLoader) {
-      throw new Error("Dispositivo não conectado");
+      throw new Error("Device not connected");
     }
 
     if (this.terminal) {
-      this.terminal.writeLine("Apagando flash...");
+      this.terminal.writeLine("Erasing flash...");
     }
 
     await this.espLoader.eraseFlash();
 
     if (this.terminal) {
-      this.terminal.writeLine("Flash apagado com sucesso");
+      this.terminal.writeLine("Flash erased successfully");
     }
   }
 
   async connect(baudRate = 115200): Promise<FlashResult> {
     try {
       if (this.terminal) {
-        this.terminal.writeLine("Solicitando acesso à porta serial...");
+        this.terminal.writeLine("Requesting access to serial port...");
       }
 
       // Request port without filters to show all devices
@@ -97,11 +97,11 @@ export class FlashService {
       });
 
       if (!this.port) {
-        throw new Error("Nenhuma porta serial selecionada");
+        throw new Error("No serial port selected");
       }
 
       if (this.terminal) {
-        this.terminal.writeLine("Porta selecionada, abrindo conexão...");
+        this.terminal.writeLine("Port selected, opening connection...");
       }
 
       // Create transport instance first
@@ -116,21 +116,21 @@ export class FlashService {
       });
 
       if (this.terminal) {
-        this.terminal.writeLine("Conectando ao chip ESP...");
+        this.terminal.writeLine("Connecting to ESP chip...");
       }
 
       // Connect to the device using the main method which handles the connection sequence
       const chipInfo = await this.espLoader.main();
 
       if (this.terminal) {
-        this.terminal.writeLine(`Chip detectado: ${chipInfo}`);
+        this.terminal.writeLine(`Chip detected: ${chipInfo}`);
       }
 
       return { success: true, chipInfo };
     } catch (error) {
       const errorMessage = (error as Error).message;
       if (this.terminal) {
-        this.terminal.writeLine(`Erro ao conectar: ${errorMessage}`);
+        this.terminal.writeLine(`Connection error: ${errorMessage}`);
       }
       // Clean up resources on error
       await this.disconnect();
@@ -145,36 +145,36 @@ export class FlashService {
     flashAddress: number = 0x1000
   ): Promise<void> {
     try {
-      onLog("Iniciando flash do firmware...");
+      onLog("Starting firmware flash...");
 
-      // Baixar o firmware
-      onLog(`Baixando firmware de: ${firmwareUrl}`);
+      // Download the firmware
+      onLog(`Downloading firmware from: ${firmwareUrl}`);
       const response = await fetch(firmwareUrl);
       if (!response.ok) {
-        throw new Error(`Erro ao baixar firmware: ${response.statusText} (${response.status})`);
+        throw new Error(`Error downloading firmware: ${response.statusText} (${response.status})`);
       }
 
       const firmwareData = await response.arrayBuffer();
       const firmwareBuffer = new Uint8Array(firmwareData);
 
       if (firmwareBuffer.length === 0) {
-        throw new Error("Firmware vazio ou não encontrado");
+        throw new Error("Firmware empty or not found");
       }
 
-      onLog(`Tamanho do firmware: ${firmwareBuffer.length} bytes`);
+      onLog(`Firmware size: ${firmwareBuffer.length} bytes`);
 
       if (!this.espLoader) {
-        throw new Error("Dispositivo não conectado");
+        throw new Error("Device not connected");
       }
 
-      // Converter dados binários para o formato correto
+      // Convert binary data to the correct format
       const binaryString = Array.from(firmwareBuffer)
         .map((b) => String.fromCharCode(b))
         .join("");
 
-      onLog(`Endereço de flash: 0x${flashAddress.toString(16)}`);
+      onLog(`Flash address: 0x${flashAddress.toString(16)}`);
 
-      // Configurar o flash exatamente como no exemplo que funciona
+      // Configure the flash exactly as in the working example
       const flashOptions = {
         fileArray: [
           {
@@ -185,37 +185,37 @@ export class FlashService {
         flashSize: "keep",
         eraseAll: false,
         compress: true,
-        flashMode: "dio", // Tentando com dio em vez de qio
-        flashFreq: "40m", // Tentando com frequência menor 40m em vez de 80m
+        flashMode: "dio", // Using dio instead of qio
+        flashFreq: "40m", // Using lower frequency 40m instead of 80m
         reportProgress: (fileIndex: number, written: number, total: number) => {
           const progress = Math.round((written / total) * 100);
           onProgress(progress);
-          onLog(`Progresso do flash: ${progress}% (${written}/${total} bytes)`);
+          onLog(`Flash progress: ${progress}% (${written}/${total} bytes)`);
         },
       };
 
-      onLog("Iniciando processo de flash...");
-      // O método writeFlash é assíncrono, precisamos esperar até que esteja concluído
+      onLog("Starting flash process...");
+      // The writeFlash method is asynchronous, we need to wait until it completes
       await this.espLoader.writeFlash(flashOptions);
-      onLog("Flash concluído com sucesso!");
+      onLog("Flash completed successfully!");
 
-      // Resetar o dispositivo
-      onLog("Reiniciando dispositivo...");
+      // Reset the device
+      onLog("Restarting device...");
       await this.espLoader.after();
 
       // Force a hard reset using RTS
       if (this.transport) {
-        onLog("Realizando hard reset do dispositivo...");
+        onLog("Performing device hard reset...");
         await this.transport.setDTR(false);
         await this.transport.setRTS(true);
         await new Promise((resolve) => setTimeout(resolve, 100));
         await this.transport.setRTS(false);
-        onLog("Reset concluído");
+        onLog("Reset complete");
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      onLog(`Erro durante o flash: ${errorMessage}`);
-      console.error("Erro detalhado:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      onLog(`Error during flash: ${errorMessage}`);
+      console.error("Detailed error:", error);
       throw error;
     }
   }
@@ -243,7 +243,7 @@ export class FlashService {
         try {
           await this.port.close();
         } catch (error) {
-          console.warn("Erro ao fechar porta:", error);
+          console.warn("Error closing port:", error);
         }
         this.port = null;
       }
@@ -251,7 +251,7 @@ export class FlashService {
       this.espLoader = null;
       return true;
     } catch (error) {
-      console.error("Erro ao desconectar:", error);
+      console.error("Error disconnecting:", error);
       return false;
     }
   }

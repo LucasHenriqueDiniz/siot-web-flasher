@@ -1,7 +1,7 @@
 import { Transport } from "esptool-js";
 import { serial as webSerialPolyfill } from "web-serial-polyfill";
 
-// Usar polyfill se a API Web Serial nativa não estiver disponível, exatamente como no exemplo
+// Use polyfill if native Web Serial API is not available
 const serialLib = !navigator.serial && navigator.usb ? webSerialPolyfill : navigator.serial;
 
 interface Terminal {
@@ -10,7 +10,7 @@ interface Terminal {
   clear(): void;
 }
 
-export class ConsoleTestService {
+export class FlashReadService {
   private device: any = null;
   private transport: Transport | null = null;
   private isConsoleClosed: boolean = false;
@@ -23,7 +23,6 @@ export class ConsoleTestService {
   async connectConsole(baudRate: number = 115200): Promise<boolean> {
     try {
       if (this.device === null) {
-        // Exatamente como no exemplo: sem filtros para mostrar todos dispositivos
         this.device = await serialLib.requestPort({
           filters: [], // Empty array to show all devices
         });
@@ -32,7 +31,6 @@ export class ConsoleTestService {
       }
 
       console.log("Connecting to device with baudRate:", baudRate);
-
       if (this.transport) {
         await this.transport.connect(baudRate);
         this.isConsoleClosed = false;
@@ -40,33 +38,29 @@ export class ConsoleTestService {
       }
       return false;
     } catch (error) {
-      console.error("Erro ao conectar:", error);
+      console.error("Error connecting:", error);
       throw error;
     }
   }
-
   async startConsoleRead() {
     if (!this.transport || !this.terminal) {
-      throw new Error("Transport ou Terminal não disponíveis");
+      throw new Error("Transport or Terminal not available");
     }
-
     try {
       this.isConsoleClosed = false;
       console.log("Starting console read loop");
 
-      // Exatamente como no exemplo, loop síncrono
+      // Just like in the example, synchronous loop
       while (true && !this.isConsoleClosed) {
         const readLoop = this.transport.rawRead();
         const { value, done } = await readLoop.next();
 
         if (done || !value) {
           break;
-        }
-
-        // Escreve diretamente os bytes no terminal, sem processamento
+        } // Write bytes directly to the terminal, without processing
         this.terminal.write(value);
 
-        // Log hexadecimal dos bytes para debug
+        // Hexadecimal log of bytes for debugging
         const bytes = new Uint8Array(value.buffer);
         let hexString = "";
         for (let i = 0; i < bytes.length; i++) {
@@ -74,10 +68,9 @@ export class ConsoleTestService {
         }
         console.log("Raw Read bytes:", hexString);
       }
-
       console.log("Quitting console");
     } catch (error) {
-      console.error("Erro na leitura do console:", error);
+      console.error("Error reading console:", error);
       throw error;
     }
   }
@@ -112,16 +105,16 @@ export class ConsoleTestService {
   }
   async sendData(data: string): Promise<void> {
     if (!this.transport) {
-      throw new Error("Transport não disponível");
+      throw new Error("Transport not available");
     }
 
     try {
-      // Implementação exatamente como no exemplo original
+      // Implementation exactly as in the original example
       const encoder = new TextEncoder();
       const dataWithNewLine = data.endsWith("\r\n") ? data : data + "\r\n";
       const dataArray = encoder.encode(dataWithNewLine);
 
-      // Usar um writer da porta serial diretamente
+      // Use a serial port writer directly
       if (this.device?.writable) {
         const writer = this.device.writable.getWriter();
         try {
@@ -131,11 +124,11 @@ export class ConsoleTestService {
         }
       }
     } catch (error) {
-      console.error("Erro ao enviar dados:", error);
+      console.error("Error sending data:", error);
       throw error;
     }
   }
 }
 
-const consoleTestService = new ConsoleTestService();
-export default consoleTestService;
+const flashReadService = new FlashReadService();
+export default flashReadService;

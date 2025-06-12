@@ -1,5 +1,6 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+//Simple Terminal Component to use in the application
 import { Box, styled } from "@mui/material";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 interface SimpleTerminalProps {
   autoScroll?: boolean;
@@ -16,7 +17,7 @@ interface SimpleTerminalProps {
   parseAnsi?: boolean;
 }
 
-// Interface para o API exposto para manipular o terminal externamente
+// Interface for the API exposed to manipulate the terminal externally
 export interface TerminalRef {
   write: (text: string) => void;
   writeLine: (text: string) => void;
@@ -30,7 +31,7 @@ interface AnsiToken {
   style?: React.CSSProperties;
 }
 
-// Cores e estilos para códigos ANSI
+// Colors and styles for ANSI codes
 const ANSI_COLORS = {
   foreground: [
     "black", // 30
@@ -64,7 +65,7 @@ const ANSI_COLORS = {
   ],
 };
 
-// Função que processa um código ANSI e retorna o novo estilo
+// Function to process an ANSI code and return the new style
 const processAnsiCode = (currentStyle: React.CSSProperties, code: number): React.CSSProperties => {
   const newStyle = { ...currentStyle };
 
@@ -72,27 +73,27 @@ const processAnsiCode = (currentStyle: React.CSSProperties, code: number): React
   if (code === 0) {
     return {};
   }
-  // Cores básicas do texto
+  // Basic text color
   else if (code >= 30 && code <= 37) {
     newStyle.color = ANSI_COLORS.foreground[code - 30];
   }
-  // Cores brilhantes do texto
+  // Bright text colors
   else if (code >= 90 && code <= 97) {
     newStyle.color = ANSI_COLORS.brightForeground[code - 90];
   }
-  // Cores básicas de fundo
+  // Basic background colors
   else if (code >= 40 && code <= 47) {
     newStyle.backgroundColor = ANSI_COLORS.background[code - 40];
   }
-  // Negrito
+  // Bold
   else if (code === 1) {
     newStyle.fontWeight = "bold";
   }
-  // Itálico
+  // Italic
   else if (code === 3) {
     newStyle.fontStyle = "italic";
   }
-  // Sublinhado
+  // Underline
   else if (code === 4) {
     newStyle.textDecoration = "underline";
   }
@@ -100,9 +101,10 @@ const processAnsiCode = (currentStyle: React.CSSProperties, code: number): React
   return newStyle;
 };
 
-// Função para processar códigos ANSI
+// Function to parse ANSI text and return an array of styled tokens
 const parseAnsiText = (text: string): AnsiToken[] => {
-  // Caracteres especiais para códigos ANSI
+  // Escape character for ANSI sequences
+  // ANSI escape sequences start with ESC followed by '[' and end with 'm'
   const ESC = "\u001b";
 
   const result: AnsiToken[] = [];
@@ -111,13 +113,13 @@ const parseAnsiText = (text: string): AnsiToken[] => {
   let inEscapeSequence = false;
   let escapeBuffer = "";
 
-  // Processa o texto caractere por caractere
+  // Process the text character by character
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
 
-    // Verifica se é o início de uma sequência de escape
+    // Check if it's the start of an escape sequence
     if (char === ESC && i + 1 < text.length && text[i + 1] === "[") {
-      // Se temos texto acumulado, salvamos com o estilo atual
+      // If we have accumulated text, save it with the current style
       if (currentText) {
         result.push({
           text: currentText,
@@ -132,32 +134,32 @@ const parseAnsiText = (text: string): AnsiToken[] => {
       continue;
     }
 
-    // Se estamos processando uma sequência de escape
+    // If we are processing an escape sequence
     if (inEscapeSequence) {
-      // Se encontrarmos 'm', é o final da sequência de escape
+      // If we encounter 'm', it's the end of the escape sequence
       if (char === "m") {
         inEscapeSequence = false;
 
-        // Processa os códigos da sequência de escape
+        // Process the codes in the escape sequence
         const codes = escapeBuffer.split(";").map((c) => parseInt(c, 10) || 0);
 
-        // Aplica cada código de estilo sequencialmente
+        // Apply each style code sequentially
         for (const code of codes) {
           currentStyle = processAnsiCode(currentStyle, code);
         }
       } else {
-        // Acumula caracteres da sequência de escape
+        // Accumulate characters from the escape sequence
         escapeBuffer += char;
       }
 
       continue;
     }
 
-    // Texto normal
+    // Normal text
     currentText += char;
   }
 
-  // Adiciona o texto restante (se houver)
+  // Add the remaining text (if any)
   if (currentText) {
     result.push({
       text: currentText,
@@ -168,7 +170,7 @@ const parseAnsiText = (text: string): AnsiToken[] => {
   return result;
 };
 
-// Terminal container estilizado com MUI
+// Terminal container styled with MUI
 const TerminalContainer = styled(Box)(({ theme }) => ({
   position: "relative",
   overflowY: "auto",
@@ -176,7 +178,7 @@ const TerminalContainer = styled(Box)(({ theme }) => ({
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
   padding: theme.spacing(1.5),
-  outline: "none", // Remove o outline padrão quando o elemento recebe foco
+  outline: "none",
   borderRadius: "3px",
   boxShadow: "0px 2px 6px rgba(0, 0, 0, 0.15)",
   "&::-webkit-scrollbar": {
@@ -194,7 +196,7 @@ const TerminalContainer = styled(Box)(({ theme }) => ({
   },
 }));
 
-// Cursor piscante estilizado
+// Cursor blinking
 const BlinkingCursor = styled("span")({
   display: "inline-block",
   width: "0.6em",
@@ -212,7 +214,7 @@ const BlinkingCursor = styled("span")({
   },
 });
 
-// Componente de terminal simples e personalizado
+// Component SimpleTerminal
 const SimpleTerminal = React.forwardRef<TerminalRef, SimpleTerminalProps>((props, ref) => {
   const {
     autoScroll = true,
@@ -233,26 +235,26 @@ const SimpleTerminal = React.forwardRef<TerminalRef, SimpleTerminalProps>((props
   const [content, setContent] = useState<string>("");
   const [parsedContent, setParsedContent] = useState<AnsiToken[]>([]);
 
-  // Processar códigos ANSI quando o conteúdo mudar
+  // Process ANSI codes when content changes
   useEffect(() => {
     if (parseAnsi) {
       setParsedContent(parseAnsiText(content));
     }
   }, [content, parseAnsi]);
 
-  // Função para rolar para o final quando o conteúdo muda
+  // Function to scroll to the bottom when content changes
   const scrollToBottom = useCallback(() => {
     if (autoScroll && terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [autoScroll]);
 
-  // Atualiza a rolagem quando o conteúdo muda
+  // Update scroll position when content changes
   useEffect(() => {
     scrollToBottom();
   }, [content, parsedContent, scrollToBottom]);
 
-  // Métodos expostos através da ref
+  // ref methods to manipulate the terminal
   React.useImperativeHandle(ref, () => ({
     write: (text: string) => {
       setContent((prev) => prev + text);
@@ -271,7 +273,7 @@ const SimpleTerminal = React.forwardRef<TerminalRef, SimpleTerminalProps>((props
     },
   }));
 
-  // Renderiza texto com formatação ANSI
+  // Render ANSI formatted text
   const renderContent = () => {
     if (!parseAnsi) return content;
 
@@ -303,7 +305,7 @@ const SimpleTerminal = React.forwardRef<TerminalRef, SimpleTerminalProps>((props
         border: "1px solid #383838",
         lineHeight: "1.3",
       }}
-      tabIndex={0} // Para permitir foco via teclado
+      tabIndex={0}
       onKeyPress={onKeyPress}
       onKeyDown={onKeyDown}
     >

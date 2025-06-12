@@ -1,23 +1,23 @@
-import React, { useState } from "react";
 import {
+  Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   FormControl,
   InputLabel,
+  LinearProgress,
   MenuItem,
   Select,
-  Typography,
-  TextField,
-  Paper,
-  Alert,
   Snackbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  LinearProgress,
+  TextField,
+  Typography,
 } from "@mui/material";
-import flashService from "../../services/flashService";
+import React, { useEffect, useRef, useState } from "react";
+import flashService from "../services/flashService";
+import SimpleTerminal, { TerminalRef } from "./SimpleTerminal";
 
 interface WebFlasherProps {
   firmwareVersions: { version: string; url: string }[];
@@ -30,15 +30,50 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
   const [isConnected, setIsConnected] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [serialLog, setSerialLog] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
   const [baudRate, setBaudRate] = useState("115200");
   const [flashAddress, setFlashAddress] = useState("0x1000");
+  const terminalRef = useRef<TerminalRef>(null);
+
+  // Set up terminal when component is mounted
+  useEffect(() => {
+    if (terminalRef.current) {
+      // Create a terminal adapter that implements the interface expected by the service
+      const terminalAdapter = {
+        clean: () => {
+          if (terminalRef.current) {
+            terminalRef.current.clear();
+          }
+        },
+        writeLine: (data: string) => {
+          if (terminalRef.current) {
+            terminalRef.current.writeLine(data);
+          }
+        },
+        write: (data: string | Uint8Array) => {
+          if (terminalRef.current) {
+            // if is Uint8Array or ArrayBuffer, convert to string
+            if (data instanceof Uint8Array || (data as any).buffer instanceof ArrayBuffer) {
+              const decoder = new TextDecoder();
+              terminalRef.current.write(decoder.decode(data as Uint8Array));
+            } else {
+              terminalRef.current.write(data as string);
+            }
+          }
+        },
+      };
+
+      // Register the terminal adapter in the service
+      flashService.setTerminal(terminalAdapter);
+    }
+  }, []);
 
   const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setSerialLog((prev) => [...prev, `[${timestamp}] ${message}`]);
+    if (terminalRef.current) {
+      const timestamp = new Date().toLocaleTimeString();
+      terminalRef.current.writeLine(`[${timestamp}] ${message}`);
+    }
   };
 
   const showStatus = (type: "success" | "error" | "info", message: string) => {
@@ -48,31 +83,42 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
 
   const handleConnect = async () => {
     try {
-      showStatus("info", "Tentando conectar ao dispositivo...");
+      showStatus("info", "Trying to connect to device...");
+
+      // Clear the terminal before connecting
+      if (terminalRef.current) {
+        terminalRef.current.clear();
+        terminalRef.current.writeLine("Trying to connect to device...");
+      }
+
       const result = await flashService.connect(parseInt(baudRate));
       if (result.success) {
         setIsConnected(true);
         setHasStabilizedConnection(true);
-        showStatus("success", "Dispositivo conectado com sucesso!");
+        showStatus("success", "Device connected successfully!");
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao conectar";
-      showStatus("error", `Falha ao conectar: ${errorMessage}`);
-      console.error("Erro ao conectar:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error while connecting";
+      showStatus("error", `Failed to connect: ${errorMessage}`);
+      console.error("Error connecting:", error);
     }
   };
 
   const handleDisconnect = async () => {
     try {
-      showStatus("info", "Desconectando dispositivo...");
+      showStatus("info", "Disconnecting device...");
       await flashService.disconnect();
       setIsConnected(false);
       setHasStabilizedConnection(false);
-      setSerialLog([]);
-      showStatus("success", "Dispositivo desconectado com sucesso!");
+
+      if (terminalRef.current) {
+        terminalRef.current.writeLine("Device disconnected");
+      }
+
+      showStatus("success", "Device disconnected successfully!");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao desconectar";
-      showStatus("error", `Falha ao desconectar: ${errorMessage}`);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error while disconnecting";
+      showStatus("error", `Failed to disconnect: ${errorMessage}`);
       console.error("Erro ao desconectar:", error);
     }
   };
@@ -82,14 +128,14 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
       setIsFlashing(true);
       setShowEraseConfirm(false);
       setProgress(0);
-      showStatus("info", "Iniciando apagamento da memória flash...");
+      showStatus("info", "Starting flash erase...");
       await flashService.eraseFlash();
       setProgress(100);
-      showStatus("success", "Memória flash apagada com sucesso!");
+      showStatus("success", "Flash memory erased successfully!");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao apagar";
-      showStatus("error", `Falha ao apagar memória: ${errorMessage}`);
-      console.error("Erro ao apagar:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error while erasing";
+      showStatus("error", `Failed to erase flash memory: ${errorMessage}`);
+      console.error("Error erasing:", error);
     } finally {
       setIsFlashing(false);
     }
@@ -97,23 +143,30 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
 
   const handleFlash = async () => {
     if (!selectedFirmware) {
-      setStatusMessage({ type: "error", message: "Selecione um firmware primeiro" });
+      setStatusMessage({ type: "error", message: "Select a firmware first" });
+      if (terminalRef.current) {
+        terminalRef.current.writeLine("Error: No firmware selected");
+      }
       return;
     }
 
     try {
       setIsFlashing(true);
-      setStatusMessage({ type: "info", message: "Iniciando flash do firmware..." });
+      setStatusMessage({ type: "info", message: "Starting firmware flash..." });
       setProgress(0);
-      setSerialLog([]);
+
+      if (terminalRef.current) {
+        terminalRef.current.clear();
+        terminalRef.current.writeLine("Starting firmware flash process...");
+      }
 
       const firmware = firmwareVersions.find((f) => f.version === selectedFirmware);
       if (!firmware) {
-        throw new Error("Firmware não encontrado");
+        throw new Error("Firmware not found");
       }
 
-      addLog(`Iniciando flash do firmware da URL: ${firmware.url}`);
-      addLog(`Usando endereço de flash: 0x${parseInt(flashAddress, 16).toString(16)}`);
+      addLog(`Starting firmware flash from URL: ${firmware.url}`);
+      addLog(`Using flash address: 0x${parseInt(flashAddress, 16).toString(16)}`);
 
       await flashService.flashFirmware(
         firmware.url,
@@ -127,12 +180,12 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
         parseInt(flashAddress, 16)
       );
 
-      setStatusMessage({ type: "success", message: "Firmware instalado com sucesso!" });
+      setStatusMessage({ type: "success", message: "Firmware installed successfully!" });
       onSuccess?.();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      setStatusMessage({ type: "error", message: `Erro: ${errorMessage}` });
-      addLog(`Erro: ${errorMessage}`);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setStatusMessage({ type: "error", message: `Error: ${errorMessage}` });
+      addLog(`Error: ${errorMessage}`);
     } finally {
       setIsFlashing(false);
     }
@@ -159,18 +212,18 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
         open={showEraseConfirm}
         onClose={() => setShowEraseConfirm(false)}
       >
-        <DialogTitle>Atenção</DialogTitle>
+        <DialogTitle>Attention</DialogTitle>
         <DialogContent>
-          <Typography>Você está prestes a apagar toda a memória flash do dispositivo. Esta ação não pode ser desfeita. Deseja continuar?</Typography>
+          <Typography>You are about to erase the entire flash memory of the device. This action cannot be undone. Do you want to continue?</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowEraseConfirm(false)}>Cancelar</Button>
+          <Button onClick={() => setShowEraseConfirm(false)}>Cancel</Button>
           <Button
             onClick={handleErase}
             color="error"
             variant="contained"
           >
-            Apagar
+            Erase Flash
           </Button>
         </DialogActions>
       </Dialog>
@@ -181,7 +234,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
           onClick={handleConnect}
           disabled={isConnected}
         >
-          Conectar Dispositivo
+          Connect Device
         </Button>
         <Button
           variant="contained"
@@ -189,7 +242,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
           onClick={handleDisconnect}
           disabled={!isConnected}
         >
-          Desconectar
+          Disconnect
         </Button>
         <Button
           variant="contained"
@@ -197,7 +250,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
           onClick={() => setShowEraseConfirm(true)}
           disabled={!isConnected || isFlashing}
         >
-          Apagar Flash
+          Erase Flash
         </Button>
       </Box>
 
@@ -223,7 +276,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
         </Box>
         <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
           <FormControl fullWidth>
-            <InputLabel>Versão do Firmware</InputLabel>
+            <InputLabel>Firmware Version</InputLabel>
             <Select
               value={selectedFirmware}
               onChange={(e) => setSelectedFirmware(e.target.value)}
@@ -252,7 +305,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
             onChange={(e) => setFlashAddress(e.target.value)}
             disabled={isFlashing}
             placeholder="0x1000"
-            helperText="Endereço em hexadecimal (ex: 0x1000)"
+            helperText="Address in hexadecimal (ex: 0x1000)"
           />
         </Box>
       )}
@@ -263,7 +316,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
             variant="body2"
             sx={{ mb: 0.5 }}
           >
-            Progresso: {progress}%
+            Progress: {progress}%
           </Typography>
           <LinearProgress
             variant="determinate"
@@ -289,25 +342,21 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
         fullWidth
         sx={{ mb: 2 }}
       >
-        {isFlashing ? `Flasheando...` : "Iniciar Flash"}
+        {isFlashing ? `Flashing...` : "Start Flash"}
       </Button>
 
-      <Paper
-        sx={{
-          p: 2,
-          height: "300px",
-          overflowY: "auto",
-          backgroundColor: "#121212",
-          color: "#f0f0f0",
-          fontFamily: "monospace",
-          mb: 2,
-          borderRadius: 2,
-        }}
-      >
-        {serialLog.map((line, i) => (
-          <div key={i}>{line}</div>
-        ))}
-      </Paper>
+      <Box sx={{ mb: 2, height: "300px" }}>
+        <SimpleTerminal
+          ref={terminalRef}
+          height="300px"
+          backgroundColor="#121212"
+          textColor="#f0f0f0"
+          fontSize={14}
+          fontFamily="'Consolas', 'Courier New', monospace"
+          autoScroll={true}
+          parseAnsi={true}
+        />
+      </Box>
     </Box>
   );
 };

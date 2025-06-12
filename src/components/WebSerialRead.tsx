@@ -212,7 +212,7 @@ const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) =
             style={{ marginRight: 8 }}
             color="textSecondary"
           >
-            <strong>AutoScroll:</strong> {isConnected ? "enabled" : "disabled"}
+            <strong>AutoScroll:</strong> {autoScroll ? "enabled" : "disabled"}
           </Typography>
           <Switch
             checked={autoScroll}

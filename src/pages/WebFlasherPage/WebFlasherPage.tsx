@@ -1,10 +1,11 @@
-import { Container, Typography, Alert, Box } from "@mui/material";
-import React, { useState } from "react";
-import WebFlasher from "../../components/WebFlasher";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { Alert, Box, Container, Tab, Tabs, Typography, Snackbar } from "@mui/material";
 import Accordion from "@mui/material/Accordion";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import AccordionSummary from "@mui/material/AccordionSummary";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import React, { useState } from "react";
+import SerialReadTest from "../../components/SerialReadTest/SerialReadTest";
+import WebFlasher from "../../components/WebFlasher";
 
 // Lista de versões de firmware disponíveis
 const availableFirmwares = [{ version: "v1.0.3", url: "/firmwares/esp-client-1.0.3.bin" }];
@@ -12,12 +13,39 @@ const availableFirmwares = [{ version: "v1.0.3", url: "/firmwares/esp-client-1.0
 export const WebFlasherPage: React.FC = () => {
   const [howToUseExpanded, setHowToUseExpanded] = useState<boolean>(false);
   const [compatibilityExpanded, setCompatibilityExpanded] = useState<boolean>(false);
+  const [tabValue, setTabValue] = useState<number>(0);
+  const [isConnected, setConnected] = useState<boolean>(false);
+  const [showWarning, setShowWarning] = useState<boolean>(false);
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    if (isConnected) {
+      // Show warning message if connected
+      setShowWarning(true);
+      return;
+    }
+    setTabValue(newValue);
+  };
 
   return (
     <Container
       maxWidth="md"
       sx={{ py: 4 }}
     >
+      <Snackbar
+        open={showWarning}
+        autoHideDuration={5000}
+        onClose={() => setShowWarning(false)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setShowWarning(false)}
+          severity="warning"
+          sx={{ width: "100%" }}
+        >
+          Para trocar de modo é necessário desconectar o dispositivo para evitar erros.
+        </Alert>
+      </Snackbar>
+
       <Typography
         variant="h4"
         component="h1"
@@ -55,7 +83,7 @@ export const WebFlasherPage: React.FC = () => {
                 <Typography paragraph>Clique em "Conectar Dispositivo" e selecione a porta apropriada</Typography>
               </li>
               <li>
-                <Typography paragraph>Selecione o arquivo de firmware que deseja flashear</Typography>
+                <Typography paragraph>Selecione a versão do firmware desejada</Typography>
               </li>
               <li>
                 <Typography paragraph>Clique em "Iniciar Flash" para começar o processo</Typography>
@@ -86,16 +114,11 @@ export const WebFlasherPage: React.FC = () => {
             <Typography variant="h6">Dispositivos Compatíveis</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Typography paragraph>O S-IoT Web Flasher é compatível com uma ampla gama de dispositivos ESP32 e ESP8266:</Typography>
+            <Typography paragraph>O S-IoT Web Flasher é compatível com uma ampla gama de dispositivos ESP:</Typography>
             <ul>
               <li>
                 <Typography paragraph>
-                  <strong>ESP32:</strong> DevKit, WROOM, WROVER, S2, S3, C3
-                </Typography>
-              </li>
-              <li>
-                <Typography paragraph>
-                  <strong>ESP8266:</strong> NodeMCU, Wemos D1 Mini, Generic modules
+                  <strong>ESP32:</strong> Lorem Ipsolum
                 </Typography>
               </li>
             </ul>
@@ -110,12 +133,37 @@ export const WebFlasherPage: React.FC = () => {
         </Accordion>
       </Box>
 
-      <WebFlasher
-        firmwareVersions={availableFirmwares}
-        onSuccess={() => {
-          console.log("Flash concluído com sucesso!");
-        }}
-      />
+      {/* Abas para alternar entre flasher e console */}
+      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="console tabs"
+        >
+          <Tab label="Web Flasher" />
+          <Tab label="Serial Monitor" />
+        </Tabs>
+      </Box>
+
+      <Box
+        sx={{ pt: 3 }}
+        hidden={tabValue !== 0}
+      >
+        <WebFlasher
+          firmwareVersions={availableFirmwares}
+          setHasStabilizedConnection={setConnected}
+          onSuccess={() => {
+            console.log("Flash concluído com sucesso!");
+          }}
+        />
+      </Box>
+
+      <Box
+        sx={{ pt: 3 }}
+        hidden={tabValue !== 1}
+      >
+        <SerialReadTest setHasStabilizedConnection={setConnected} />
+      </Box>
     </Container>
   );
 };

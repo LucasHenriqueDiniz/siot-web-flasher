@@ -16,47 +16,16 @@ import {
   DialogContent,
   DialogActions,
   LinearProgress,
-  Tabs,
-  Tab,
 } from "@mui/material";
 import flashService from "../../services/flashService";
-import SerialConsole from "../SerialConsole/SerialConsole";
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function CustomTabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
-
-function a11yProps(index: number) {
-  return {
-    id: `simple-tab-${index}`,
-    "aria-controls": `simple-tabpanel-${index}`,
-  };
-}
 
 interface WebFlasherProps {
   firmwareVersions: { version: string; url: string }[];
   onSuccess?: () => void;
+  setHasStabilizedConnection: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) => {
+const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, setHasStabilizedConnection }) => {
   const [selectedFirmware, setSelectedFirmware] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
@@ -66,17 +35,6 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
   const [baudRate, setBaudRate] = useState("115200");
   const [flashAddress, setFlashAddress] = useState("0x1000");
-  const [tabValue, setTabValue] = useState(0);
-
-  const handleTabChange = async (event: React.SyntheticEvent, newValue: number) => {
-    if (tabValue === 1 && newValue !== 1) {
-      const serialConsole = document.querySelector("SerialConsole");
-      if (serialConsole) {
-        await (serialConsole as any).stopConsole();
-      }
-    }
-    setTabValue(newValue);
-  };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -94,6 +52,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
       const result = await flashService.connect(parseInt(baudRate));
       if (result.success) {
         setIsConnected(true);
+        setHasStabilizedConnection(true);
         showStatus("success", "Dispositivo conectado com sucesso!");
       }
     } catch (error) {
@@ -108,6 +67,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
       showStatus("info", "Desconectando dispositivo...");
       await flashService.disconnect();
       setIsConnected(false);
+      setHasStabilizedConnection(false);
       setSerialLog([]);
       showStatus("success", "Dispositivo desconectado com sucesso!");
     } catch (error) {
@@ -120,6 +80,7 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
   const handleErase = async () => {
     try {
       setIsFlashing(true);
+      setShowEraseConfirm(false);
       setProgress(0);
       showStatus("info", "Iniciando apagamento da memória flash...");
       await flashService.eraseFlash();
@@ -131,7 +92,6 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
       console.error("Erro ao apagar:", error);
     } finally {
       setIsFlashing(false);
-      setShowEraseConfirm(false);
     }
   };
 
@@ -215,167 +175,139 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess }) 
         </DialogActions>
       </Dialog>
 
-      <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          aria-label="basic tabs example"
-        >
-          <Tab
-            label="Instalar Firmware"
-            {...a11yProps(0)}
-          />
-          <Tab
-            label="Console Serial"
-            {...a11yProps(1)}
-          />
-        </Tabs>
-      </Box>
-
-      <CustomTabPanel
-        value={tabValue}
-        index={0}
-      >
-        <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
-          <Button
-            variant="contained"
-            onClick={handleConnect}
-            disabled={isConnected}
-          >
-            Conectar Dispositivo
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleDisconnect}
-            disabled={!isConnected}
-          >
-            Desconectar
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={() => setShowEraseConfirm(true)}
-            disabled={!isConnected || isFlashing}
-          >
-            Apagar Flash
-          </Button>
-        </Box>
-
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 2 }}>
-          <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
-            <FormControl fullWidth>
-              <InputLabel>Baud Rate</InputLabel>
-              <Select
-                value={baudRate}
-                onChange={(e) => setBaudRate(e.target.value)}
-                disabled={isConnected}
-              >
-                <MenuItem value="9600">9600</MenuItem>
-                <MenuItem value="19200">19200</MenuItem>
-                <MenuItem value="38400">38400</MenuItem>
-                <MenuItem value="57600">57600</MenuItem>
-                <MenuItem value="115200">115200</MenuItem>
-                <MenuItem value="230400">230400</MenuItem>
-                <MenuItem value="460800">460800</MenuItem>
-                <MenuItem value="921600">921600</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-          <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
-            <FormControl fullWidth>
-              <InputLabel>Versão do Firmware</InputLabel>
-              <Select
-                value={selectedFirmware}
-                onChange={(e) => setSelectedFirmware(e.target.value)}
-                disabled={!isConnected || isFlashing}
-              >
-                {firmwareVersions.map((firmware) => (
-                  <MenuItem
-                    key={firmware.version}
-                    value={firmware.version}
-                  >
-                    {firmware.version}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-
-        {isConnected && (
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              label="Endereço Flash"
-              value={flashAddress}
-              onChange={(e) => setFlashAddress(e.target.value)}
-              disabled={isFlashing}
-              placeholder="0x1000"
-              helperText="Endereço em hexadecimal (ex: 0x1000)"
-            />
-          </Box>
-        )}
-
-        {isFlashing && (
-          <Box sx={{ mb: 2 }}>
-            <Typography
-              variant="body2"
-              sx={{ mb: 0.5 }}
-            >
-              Progresso: {progress}%
-            </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: "rgba(0, 0, 0, 0.1)",
-                "& .MuiLinearProgress-bar": {
-                  borderRadius: 5,
-                  backgroundColor: "primary.main",
-                },
-              }}
-            />
-          </Box>
-        )}
-
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
         <Button
           variant="contained"
-          color="primary"
-          onClick={handleFlash}
-          disabled={!isConnected || !selectedFirmware || isFlashing}
-          fullWidth
-          sx={{ mb: 2 }}
+          onClick={handleConnect}
+          disabled={isConnected}
         >
-          {isFlashing ? `Flasheando...` : "Iniciar Flash"}
+          Conectar Dispositivo
         </Button>
-
-        <Paper
-          sx={{
-            p: 2,
-            height: "300px",
-            overflowY: "auto",
-            backgroundColor: "#121212",
-            color: "#f0f0f0",
-            fontFamily: "monospace",
-            mb: 2,
-            borderRadius: 2,
-          }}
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleDisconnect}
+          disabled={!isConnected}
         >
-          {serialLog.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
-        </Paper>
-      </CustomTabPanel>
+          Desconectar
+        </Button>
+        <Button
+          variant="contained"
+          color="warning"
+          onClick={() => setShowEraseConfirm(true)}
+          disabled={!isConnected || isFlashing}
+        >
+          Apagar Flash
+        </Button>
+      </Box>
 
-      <CustomTabPanel
-        value={tabValue}
-        index={1}
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 2 }}>
+        <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+          <FormControl fullWidth>
+            <InputLabel>Baud Rate</InputLabel>
+            <Select
+              value={baudRate}
+              onChange={(e) => setBaudRate(e.target.value)}
+              disabled={isConnected}
+            >
+              <MenuItem value="9600">9600</MenuItem>
+              <MenuItem value="19200">19200</MenuItem>
+              <MenuItem value="38400">38400</MenuItem>
+              <MenuItem value="57600">57600</MenuItem>
+              <MenuItem value="115200">115200</MenuItem>
+              <MenuItem value="230400">230400</MenuItem>
+              <MenuItem value="460800">460800</MenuItem>
+              <MenuItem value="921600">921600</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+        <Box sx={{ flex: "1 1 300px", minWidth: 0 }}>
+          <FormControl fullWidth>
+            <InputLabel>Versão do Firmware</InputLabel>
+            <Select
+              value={selectedFirmware}
+              onChange={(e) => setSelectedFirmware(e.target.value)}
+              disabled={!isConnected || isFlashing}
+              defaultValue={firmwareVersions[0]?.version || ""}
+            >
+              {firmwareVersions.map((firmware) => (
+                <MenuItem
+                  key={firmware.version}
+                  value={firmware.version}
+                >
+                  {firmware.version}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      </Box>
+
+      {isConnected && (
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            label="Endereço Flash"
+            value={flashAddress}
+            onChange={(e) => setFlashAddress(e.target.value)}
+            disabled={isFlashing}
+            placeholder="0x1000"
+            helperText="Endereço em hexadecimal (ex: 0x1000)"
+          />
+        </Box>
+      )}
+
+      {isFlashing && (
+        <Box sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{ mb: 0.5 }}
+          >
+            Progresso: {progress}%
+          </Typography>
+          <LinearProgress
+            variant="determinate"
+            value={progress}
+            sx={{
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: "rgba(0, 0, 0, 0.1)",
+              "& .MuiLinearProgress-bar": {
+                borderRadius: 5,
+                backgroundColor: "primary.main",
+              },
+            }}
+          />
+        </Box>
+      )}
+
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleFlash}
+        disabled={!isConnected || !selectedFirmware || isFlashing}
+        fullWidth
+        sx={{ mb: 2 }}
       >
-        <SerialConsole />
-      </CustomTabPanel>
+        {isFlashing ? `Flasheando...` : "Iniciar Flash"}
+      </Button>
+
+      <Paper
+        sx={{
+          p: 2,
+          height: "300px",
+          overflowY: "auto",
+          backgroundColor: "#121212",
+          color: "#f0f0f0",
+          fontFamily: "monospace",
+          mb: 2,
+          borderRadius: 2,
+        }}
+      >
+        {serialLog.map((line, i) => (
+          <div key={i}>{line}</div>
+        ))}
+      </Paper>
     </Box>
   );
 };

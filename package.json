@@ -12,11 +12,13 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "@xterm/xterm": "^5.5.0",
     "esptool-js": "^0.5.5",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
     "react-scripts": "5.0.1",
+    "web-serial-polyfill": "^1.0.15",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
@@ -46,8 +48,7 @@
   "devDependencies": {
     "@types/react-dom": "^19.1.6"
   },
-    "resolutions": {
-      "webpack": "^5.0.0"
-    }
-  
+  "resolutions": {
+    "webpack": "^5.0.0"
+  }
 }

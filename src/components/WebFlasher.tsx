@@ -345,18 +345,16 @@ const WebFlasher: React.FC<WebFlasherProps> = ({ firmwareVersions, onSuccess, se
         {isFlashing ? `Flashing...` : "Start Flash"}
       </Button>
 
-      <Box sx={{ mb: 2, height: "300px" }}>
-        <SimpleTerminal
-          ref={terminalRef}
-          height="300px"
-          backgroundColor="#121212"
-          textColor="#f0f0f0"
-          fontSize={14}
-          fontFamily="'Consolas', 'Courier New', monospace"
-          autoScroll={true}
-          parseAnsi={true}
-        />
-      </Box>
+      <SimpleTerminal
+        ref={terminalRef}
+        height="300px"
+        backgroundColor="#000000"
+        textColor="#f0f0f0"
+        fontSize={14}
+        fontFamily="'Consolas', 'Courier New', monospace"
+        autoScroll={true}
+        parseAnsi={true}
+      />
     </Box>
   );
 };

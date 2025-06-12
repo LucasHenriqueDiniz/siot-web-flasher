@@ -1,4 +1,4 @@
-import { Box, Button, FormControl, InputLabel, MenuItem, Select, Typography } from "@mui/material";
+import { Box, Button, FormControl, InputLabel, MenuItem, Select, Switch, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 import flashReadService from "../services/flashReadService";
 import SimpleTerminal, { TerminalRef } from "./SimpleTerminal";
@@ -14,6 +14,7 @@ const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) =
   const terminalRef = useRef<TerminalRef>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [inputMessage, setInputMessage] = useState("");
+  const [autoScroll, setAutoScroll] = useState(true);
   // Set up terminal when component is mounted
   useEffect(() => {
     if (terminalRef.current) {
@@ -205,6 +206,20 @@ const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) =
         >
           Reset Device
         </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderRadius: 1, padding: 1, border: "1px solid #ccc" }}>
+          <Typography
+            variant="body2"
+            style={{ marginRight: 8 }}
+            color="textSecondary"
+          >
+            <strong>Status:</strong> {isConnected ? "enabled" : "disabled"}
+          </Typography>
+          <Switch
+            checked={autoScroll}
+            onChange={(e) => setAutoScroll(e.target.checked)}
+            color="primary"
+          />
+        </Box>
       </Box>
       <Box sx={{ mb: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
         <FormControl sx={{ minWidth: 150, width: "100%" }}>
@@ -228,20 +243,17 @@ const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) =
           </Select>
         </FormControl>
       </Box>
-      {/* Terminal de saída simplificado */}
-      <Box sx={{ mb: 2, height: "300px" }}>
-        <SimpleTerminal
-          ref={terminalRef}
-          height="300px"
-          backgroundColor="#121212"
-          textColor="#f0f0f0"
-          fontSize={14}
-          fontFamily="'Consolas', 'Courier New', monospace"
-          autoScroll={true}
-        />
-      </Box>
+      <SimpleTerminal
+        ref={terminalRef}
+        height="300px"
+        backgroundColor="#000000"
+        textColor="#f0f0f0"
+        fontSize={14}
+        fontFamily="'Consolas', 'Courier New', monospace"
+        autoScroll={autoScroll}
+      />
 
-      {/* Input para enviar dados */}
+      {/* Input to send data */}
       <Box sx={{ mb: 2, display: "flex", gap: 1 }}>
         <input
           type="text"

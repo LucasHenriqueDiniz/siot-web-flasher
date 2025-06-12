@@ -206,13 +206,13 @@ const SerialRead: React.FC<SerialReadProps> = ({ setHasStabilizedConnection }) =
         >
           Reset Device
         </Button>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderRadius: 1, padding: 1, border: "1px solid #ccc" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderRadius: 1, paddingX: 1, border: "1px solid #ccc" }}>
           <Typography
             variant="body2"
             style={{ marginRight: 8 }}
             color="textSecondary"
           >
-            <strong>Status:</strong> {isConnected ? "enabled" : "disabled"}
+            <strong>AutoScroll:</strong> {isConnected ? "enabled" : "disabled"}
           </Typography>
           <Switch
             checked={autoScroll}

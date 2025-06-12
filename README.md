@@ -53,7 +53,7 @@ Este projeto utiliza:
 
 ```bash
 # Clone o repositório
-git clone https://github.com/seunome/siot-web-flasher.git
+git clone https://github.com/LucasHenriqueDiniz/siot-web-flasher.git
 
 # Entre no diretório
 cd siot-web-flasher

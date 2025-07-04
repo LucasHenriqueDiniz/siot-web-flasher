@@ -220,6 +220,109 @@ export class FlashService {
     }
   }
 
+  async flashAndTest(
+    firmwareUrl: string,
+    onProgress: (progress: number) => void,
+    onLog: (message: string) => void,
+    onData: (data: string) => void,
+    flashAddress: number = 0x1000
+  ): Promise<void> {
+    try {
+      onLog("🚀 Iniciando processo Flash + Test integrado...");
+
+      // === FASE 1: FLASH DO FIRMWARE ===
+      onLog("⚡ Instalando firmware...");
+      await this.flashFirmware(firmwareUrl, onProgress, onLog, flashAddress);
+
+      // === FASE 2: DESCONECTAR COMPLETAMENTE ===
+      onLog("🔌 Desconectando após flash...");
+      await this.disconnect();
+
+      // === FASE 3: AGUARDAR E RECONECTAR PARA SERIAL ===
+      onLog("⏳ Aguardando dispositivo estabilizar...");
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+
+      // Reconnect using the same port for serial monitoring
+      onLog("📡 Reconectando para monitoramento serial...");
+      const connectResult = await this.connect(115200);
+      if (!connectResult.success) {
+        throw new Error(connectResult.error || "Falha na reconexão");
+      }
+
+      // Start serial monitoring using transport rawRead
+      onLog("📖 Iniciando leitura serial...");
+      this.startSerialMonitoring(onData, onLog);
+
+      onLog("🎯 Flash + Test ativo - aguardando protocolo Echo...");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      onLog(`❌ Erro durante Flash + Test: ${errorMessage}`);
+      throw error;
+    }
+  }
+
+  private startSerialMonitoring(onData: (data: string) => void, onLog: (message: string) => void): void {
+    if (!this.transport) {
+      onLog("❌ Transport não disponível para leitura");
+      return;
+    }
+
+    onLog("✅ Iniciando monitoramento serial...");
+
+    // Use transport's rawRead method for console monitoring
+    const readLoop = async () => {
+      try {
+        for await (const value of this.transport!.rawRead()) {
+          if (value && value.length > 0) {
+            const text = new TextDecoder().decode(value);
+            if (text.trim()) {
+              onData(text);
+            }
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          onLog(`❌ Erro na leitura serial: ${error.message}`);
+        }
+      }
+    };
+
+    // Start reading in background
+    readLoop().catch((error) => {
+      console.error("Erro no loop de leitura:", error);
+    });
+  }
+
+  async sendCommand(command: string): Promise<void> {
+    if (this.transport) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(command + "\r\n");
+      await this.transport.write(data);
+      return;
+    }
+    throw new Error("Transport não disponível para envio de comandos");
+  }
+
+  async reset(): Promise<void> {
+    if (!this.transport) {
+      throw new Error("Transport não disponível");
+    }
+
+    await this.transport.setDTR(false);
+    await this.transport.setRTS(true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await this.transport.setRTS(false);
+  }
+
+  isSerialReading(): boolean {
+    return this.transport !== null;
+  }
+
+  async stopSerialReading(): Promise<void> {
+    // For this simplified version, stopping means disconnecting
+    await this.disconnect();
+  }
+
   async disconnect(): Promise<boolean> {
     try {
       if (this.reader) {

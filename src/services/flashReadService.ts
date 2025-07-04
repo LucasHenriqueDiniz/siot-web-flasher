@@ -20,13 +20,31 @@ export class FlashReadService {
     this.terminal = terminal;
   }
 
+  // Method to use an existing serial port (e.g., from flashService)
+  setExistingPort(port: any): void {
+    this.device = port;
+    if (this.transport) {
+      this.transport = null;
+    }
+    this.transport = new Transport(this.device, true);
+  }
+
+  // Method to check if we already have a device/port
+  hasDevice(): boolean {
+    return this.device !== null;
+  }
+
   async connectConsole(baudRate: number = 115200): Promise<boolean> {
     try {
       if (this.device === null) {
+        // Only request a new port if we don't have one already
         this.device = await serialLib.requestPort({
           filters: [], // Empty array to show all devices
         });
+      }
 
+      // Create or recreate transport if needed
+      if (!this.transport) {
         this.transport = new Transport(this.device, true);
       }
 
@@ -125,6 +143,33 @@ export class FlashReadService {
       }
     } catch (error) {
       console.error("Error sending data:", error);
+      throw error;
+    }
+  }
+
+  async sendRawData(data: string): Promise<void> {
+    if (!this.transport) {
+      throw new Error("Transport not available");
+    }
+
+    try {
+      // Send data without adding \r\n automatically
+      const encoder = new TextEncoder();
+      const dataArray = encoder.encode(data);
+
+      console.log(`Sending raw data: "${data}" as bytes:`, Array.from(dataArray));
+
+      // Use a serial port writer directly
+      if (this.device?.writable) {
+        const writer = this.device.writable.getWriter();
+        try {
+          await writer.write(dataArray);
+        } finally {
+          writer.releaseLock();
+        }
+      }
+    } catch (error) {
+      console.error("Error sending raw data:", error);
       throw error;
     }
   }

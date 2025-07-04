@@ -1,13 +1,20 @@
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Container, Snackbar, Tab, Tabs, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Container, Snackbar, Tab, Tabs, Typography } from "@mui/material";
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import WebFlasher from "../components/WebFlasher";
 import SerialRead from "../components/WebSerialRead";
 
 // List of available firmware versions
 // This should ideally be fetched from a server or defined in a configuration file
 // For simplicity, we define it here as a constant and put the files in the firmwares directory
-const availableFirmwares = [{ version: "v1.0.3", url: "/firmwares/esp-client-1.0.3.bin" }];
+const availableFirmwares = [
+  { version: "v1.0.3", url: "/firmwares/esp-client-1.0.3.bin" },
+  {
+    version: "v1.0.3-test",
+    url: "/firmwares/esp-client-1.0.3-logger.bin",
+  },
+];
 
 export const WebFlasherPage: React.FC = () => {
   const [howToUseExpanded, setHowToUseExpanded] = useState<boolean>(false);
@@ -53,6 +60,18 @@ export const WebFlasherPage: React.FC = () => {
       >
         S-IoT Web Flasher
       </Typography>
+
+      <Box sx={{ mb: 4, textAlign: "center" }}>
+        <Button
+          component={Link}
+          to="/install"
+          variant="contained"
+          color="primary"
+          sx={{ mb: 2 }}
+        >
+          🚀 New Install Process
+        </Button>
+      </Box>
 
       <Box sx={{ mb: 4 }}>
         <Accordion
